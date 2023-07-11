@@ -177,8 +177,6 @@ def write_pwin_files(filename, directory, pwin_files, make_folders):
             folder = f"split-{str(i + 1).zfill(pad)}"
             folder = os.path.join(directory, folder) if directory else folder
             pwi_filename = os.path.join(folder, os.path.basename(filename))
-            print('directory', directory)
-            print('kpt_filename', pwi_filename)
             try:
                 os.makedirs(folder, exist_ok=False)
             except OSError as e:  # pylint: disable=invalid-name
@@ -198,5 +196,4 @@ def write_pwin_files(filename, directory, pwin_files, make_folders):
             )
             if directory:
                 pwi_filename = os.path.join(directory, pwi_filename)
-        print('kpt_filename', pwi_filename)
         pwin_file.to_file(pwi_filename)

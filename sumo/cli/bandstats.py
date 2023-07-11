@@ -16,8 +16,9 @@ import sys
 
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
+from pymatgen.io.espresso.pwxml import PWxml
 
-from sumo.cli.bandplot import find_vasprun_files
+from sumo.cli.bandplot import find_vasprun_files, find_pwin_files
 from sumo.electronic_structure.bandstructure import get_reconstructed_band_structure
 from sumo.electronic_structure.effective_mass import (
     fit_effective_mass,
@@ -35,6 +36,7 @@ kpt_str = "[{k[0]:.2f}, {k[1]:.2f}, {k[2]:.2f}]"
 
 
 def bandstats(
+    code="vasp",
     filenames=None,
     num_sample_points=3,
     temperature=None,
@@ -50,6 +52,8 @@ def bandstats(
             named 'split-0*'. Failing that, the code will look for a vasprun in
             the current directory. If a :obj:`list` of vasprun files is
             provided, these will be combined into a single band structure.
+        code (:obj:`str`, optional): Calculation type. Default is 'vasp';
+            'espresso' is also supported.
         num_sample_points (:obj:`int`, optional): Number of k-points to sample
             when fitting the effective masses.
         temperature (:obj:`int`, optional): Find band edges within kB * T of
@@ -92,11 +96,23 @@ def bandstats(
         filenames = [filenames]
 
     bandstructures = []
-    for vr_file in filenames:
-        vr = BSVasprun(vr_file, parse_projected_eigen=False)
-        bs = vr.get_band_structure(line_mode=True)
-        bandstructures.append(bs)
-    bs = get_reconstructed_band_structure(bandstructures, force_kpath_branches=False)
+    if code == "vasp":
+        for vr_file in filenames:
+            vr = BSVasprun(vr_file, parse_projected_eigen=False)
+            bs = vr.get_band_structure(line_mode=True)
+            bandstructures.append(bs)
+    elif code == "espresso":
+        for pwxml_file in filenames:
+            pwxml = PWxml(pwxml_file, parse_projected_eigen=False)
+            pwin_file = find_pwin_files(pwxml_file)
+            bs = pwxml.get_band_structure(
+                line_mode=True, kpoints_filename=pwin_file
+            )
+            bandstructures.append(bs)
+
+    bs = get_reconstructed_band_structure(
+        bandstructures, force_kpath_branches=False
+    )
 
     if bs.is_metal():
         logging.error("ERROR: System is metallic!")
@@ -329,6 +345,13 @@ def _get_parser():
         help="one or more vasprun.xml files to plot",
     )
     parser.add_argument(
+        "-c",
+        "--code",
+        default="vasp",
+        help="Electronic structure code (default: vasp)."
+        '"espresso" also supported.',
+    )
+    parser.add_argument(
         "-n",
         "--nonparabolic",
         default=True,
@@ -361,6 +384,7 @@ def main():
 
     bandstats(
         filenames=args.filenames,
+        code=args.code,
         num_sample_points=args.sample_points,
         parabolic=args.nonparabolic,
     )

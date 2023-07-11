@@ -646,7 +646,7 @@ def _get_parser():
         default=None,
         nargs="+",
         metavar="F",
-        help="one or more vasprun.xml files to plot",
+        help="one or more vasprun.xml or PWscf xml files to plot",
     )
     parser.add_argument(
         "-c",

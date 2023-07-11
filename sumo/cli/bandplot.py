@@ -15,9 +15,7 @@ import warnings
 
 import matplotlib as mpl
 from pkg_resources import Requirement, resource_filename
-from pymatgen.electronic_structure.bandstructure import (
-    get_reconstructed_band_structure,
-)
+from pymatgen.electronic_structure.bandstructure import get_reconstructed_band_structure
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
 from pymatgen.io.espresso.pwxml import PWxml
@@ -353,20 +351,7 @@ def bandplot(
             projection_selection = None
         for pwxml_file in filenames:
             pwxml = PWxml(pwxml_file, parse_projected_eigen=parse_projected)
-            pwin_files = [
-                pwxml_file.replace(".xml", ext) for ext in (".in", ".pwi")
-            ]
-            if not (pwin_files := [p for p in pwin_files if os.path.isfile(p)]):
-                raise FileNotFoundError(
-                    f"No valid PWscf input files found for {pwxml_file}"
-                )
-            if len(pwin_files) > 1:
-                logging.warning(
-                    "Found two suitable PWscf input files for %s. Using %s",
-                    pwxml_file,
-                    pwin_files[0],
-                )
-            pwin_file = pwin_files[0]
+            pwin_file = find_pwin_files(pwxml_file)
             bs = pwxml.get_band_structure(
                 line_mode=True, kpoints_filename=pwin_file
             )
@@ -517,6 +502,28 @@ def bandplot(
 
     else:
         return plt
+
+def find_pwin_files(pwxml_file):
+    """
+    Find the PWscf input file(s) corresponding to a given PWscf XML file.
+    
+    Searches for files with the same filename as the XML file, but with
+    extensions .in or .pwi. If both are found, the .in file is used.
+    """
+    pwin_files = [
+                pwxml_file.replace(".xml", ext) for ext in (".in", ".pwi")
+            ]
+    if not (pwin_files := [p for p in pwin_files if os.path.isfile(p)]):
+        raise FileNotFoundError(
+                    f"No valid PWscf input files found for {pwxml_file}"
+                )
+    if len(pwin_files) > 1:
+        logging.warning(
+                    "Found two suitable PWscf input files for %s. Using %s",
+                    pwxml_file,
+                    pwin_files[0],
+                )
+    return pwin_files[0]
 
 
 def find_vasprun_files():

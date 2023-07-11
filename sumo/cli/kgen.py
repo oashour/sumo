@@ -18,9 +18,11 @@ import sys
 
 import numpy as np
 from pymatgen.io.vasp.inputs import Kpoints, Poscar
+from pymatgen.io.espresso.inputs import PWin
 
 import sumo.io.questaal
 import sumo.io.vasp
+import sumo.io.espresso
 from sumo.io.castep import CastepCell
 from sumo.io.questaal import QuestaalInit, QuestaalSite
 from sumo.symmetry.kpoints import get_path_data
@@ -153,6 +155,14 @@ def kgen(
                 "be set in input .cell file."
             )
         structure = CastepCell.from_file(filename).structure
+    elif code.lower() == "espresso":
+        if cart_coords:
+            logging.warning(
+                "Cartesian coordinates in Quantum ESPRESSO are "
+                "not yet implemented."
+            )
+            cart_coords = False
+        structure = PWin.from_file(filename).structure
     else:
         raise ValueError(f'Code "{code}" not recognized.')
 
@@ -189,7 +199,11 @@ def kgen(
             QuestaalInit.from_structure(kpath.prim).to_file(prim_filename)
         elif code.lower() == "castep":
             CastepCell.from_structure(kpath.prim).to_file(prim_filename)
-
+        elif code.lower() == "espresso":
+            pwin_prim = PWin.from_file(filename)
+            pwin_prim.structure = kpath.prim
+            basename, extension = os.path.splitext(os.path.basename(filename))
+            pwin_prim.to_file(filename=f"{basename}_prim{extension}")
         else:
             kpath.prim.to(filename=prim_filename)
 
@@ -197,10 +211,12 @@ def kgen(
             "\nWARNING: The input structure does not match the "
             "expected standard\nprimitive symmetry, the path may be "
             "incorrect! Use at your own risk.\n\nThe correct "
-            "symmetry primitive structure has been saved as {}.".format(prim_filename)
+            "symmetry primitive structure has been saved as {}.".format(
+                prim_filename
+            )
         )
 
-    ibz = _parse_ibzkpt(ibzkpt)
+    ibz = _parse_ibzkpt(ibzkpt) if code != "espresso" else bool(ibzkpt)
 
     if ibz and kpts_per_split is None:
         logging.info(
@@ -240,12 +256,25 @@ def kgen(
             if alat is not None:
                 logging.info(f"Multiplying kpoint values by ALAT = {alat} Bohr")
                 _bohr_to_angstrom = 0.5291772
-                kpoints = [kpoint * alat * _bohr_to_angstrom for kpoint in kpoints]
+                kpoints = [
+                    kpoint * alat * _bohr_to_angstrom for kpoint in kpoints
+                ]
         sumo.io.questaal.write_kpoint_files(
             filename,
             kpoints,
             labels,
             make_folders=make_folders,
+            directory=directory,
+            cart_coords=cart_coords,
+        )
+    elif code.lower() == "espresso":
+        sumo.io.espresso.write_kpoint_files(
+            filename,
+            kpoints,
+            labels,
+            make_folders=make_folders,
+            hybrid=ibz,
+            kpts_per_split=kpts_per_split,
             directory=directory,
             cart_coords=cart_coords,
         )
@@ -256,7 +285,9 @@ def _parse_ibzkpt(ibzkpt):
         try:
             ibz = Kpoints.from_file(ibzkpt)
             if ibz.tet_number != 0:
-                logging.error("\nERROR: IBZKPT contains tetrahedron information.")
+                logging.error(
+                    "\nERROR: IBZKPT contains tetrahedron information."
+                )
                 sys.exit()
         except OSError:
             logging.error("\nERROR: Hybrid specified but no IBZKPT file found.")
@@ -285,10 +316,16 @@ def _get_parser():
         help="input structure file (default: POSCAR)",
     )
     parser.add_argument(
+        "--pwi",
+        default="pw.in",
+        help="espresso input file (default: pw.in)",
+    )
+    parser.add_argument(
         "-c",
         "--code",
         default="vasp",
-        help="Electronic structure code (default: vasp)." '"questaal" also supported.',
+        help="Electronic structure code (default: vasp)."
+        '"questaal", "castep", and "espresso" are also supported.',
     )
     parser.add_argument(
         "-d",
@@ -350,7 +387,9 @@ def _get_parser():
         help="use Latimer & Munro method to generate the high-symmetry path",
     )
     parser.add_argument(
-        "--cartesian", action="store_true", help="use cartesian k-point coordinates"
+        "--cartesian",
+        action="store_true",
+        help="use cartesian k-point coordinates",
     )
     parser.add_argument(
         "--kpoints",
@@ -385,12 +424,16 @@ def main():
     logging.info(" ".join(sys.argv[:]))
     logging.getLogger("").addHandler(console)
 
+    filename = args.pwi if args.code == "espresso" else args.poscar
+
     mode = "bradcrack"
     if args.seekpath:
         mode = "seekpath"
     elif args.pymatgen:
         mode = "pymatgen"
-    elif args.latimer_munro:  # argparse converts hyphens in CLI arguments to underscore
+    elif (
+        args.latimer_munro
+    ):  # argparse converts hyphens in CLI arguments to underscore
         mode = "latimer-munro"
 
     ibzkpt = "IBZKPT" if args.hybrid else None
@@ -413,7 +456,7 @@ def main():
         labels = [path.split(",") for path in args.labels.split("|")]
 
     kgen(
-        args.poscar,
+        filename,
         code=args.code,
         directory=args.directory,
         symprec=args.symprec,

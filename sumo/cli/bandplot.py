@@ -660,7 +660,7 @@ def _get_parser():
         "--code",
         default="vasp",
         help="Electronic structure code (default: vasp)."
-        '"questaal" also supported.',
+        '"castep", "questaal" and "espresso" also supported.',
     )
     parser.add_argument(
         "-p", "--prefix", metavar="P", help="prefix for the files generated"

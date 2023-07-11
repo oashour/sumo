@@ -15,9 +15,12 @@ import warnings
 
 import matplotlib as mpl
 from pkg_resources import Requirement, resource_filename
-from pymatgen.electronic_structure.bandstructure import get_reconstructed_band_structure
+from pymatgen.electronic_structure.bandstructure import (
+    get_reconstructed_band_structure,
+)
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
+from pymatgen.io.espresso.pwxml import PWxml
 
 mpl.use("Agg")
 
@@ -101,6 +104,10 @@ def bandplot(
                 Path to a seedname.bands file. The prefix ("seedname") is used
                 to locate a seedname.cell file in the same directory and read
                 in the positions of high-symmetry points.
+            Quantum ESPRESSO:
+                Path to pwscf XML files. Each XML file must have a corresponding
+                input file in the same directory, with the same name but a 
+                ".in" or ".pwi" extension.
 
             If no filenames are provided, sumo
             will search for vasprun.xml or vasprun.xml.gz files in folders
@@ -109,7 +116,7 @@ def bandplot(
             provided, these will be combined into a single band structure.
 
         code (:obj:`str`, optional): Calculation type. Default is 'vasp';
-            'questaal' and 'castep' also supported (with a reduced
+            'questaal', 'castep' and 'espresso' also supported (with a reduced
             feature-set).
         prefix (:obj:`str`, optional): Prefix for file names.
         directory (:obj:`str`, optional): The directory in which to save files.
@@ -182,9 +189,9 @@ def bandplot(
             ``False`` (fractional coordinates).
         scissor (:obj:`float`, optional): Apply a scissor operator (rigid shift
             of the CBM), use with caution if applying to metals.
-        dos_file (:obj:`str`, optional): Path to vasprun.xml file from which to
-            read the density of states information. If set, the density of
-            states will be plotted alongside the bandstructure.
+        dos_file (:obj:`str`, optional): Path to vasprun.xml or PWscf xml file
+            from which to read the density of states information. If set,
+            the density of states will be plotted alongside the bandstructure.
         zero_line (:obj:`bool`, optional): If true, draw a horizontal line at
             zero energy. (To adjust where zero energy sits, use zero_energy.)
         zero_energy (:obj:`float`, optional): Energy offset determining position
@@ -336,6 +343,35 @@ def bandplot(
             labels=bnds_labels,
             coords_are_cartesian=cart_coords,
         )
+    elif code == "espresso":
+        if parse_projected:
+            logging.warning(
+                "ERROR: Parsing projected band structure from Quantum "
+                "ESPRESSO is not currently supported. Ignoring."
+            )
+            parse_projected = False
+            projection_selection = None
+        for pwxml_file in filenames:
+            pwxml = PWxml(pwxml_file, parse_projected_eigen=parse_projected)
+            pwin_files = [
+                pwxml_file.replace(".xml", ext) for ext in (".in", ".pwi")
+            ]
+            if not (pwin_files := [p for p in pwin_files if os.path.isfile(p)]):
+                raise FileNotFoundError(
+                    f"No valid PWscf input files found for {pwxml_file}"
+                )
+            if len(pwin_files) > 1:
+                logging.warning(
+                    "Found two suitable PWscf input files for %s. Using %s",
+                    pwxml_file,
+                    pwin_files[0],
+                )
+            pwin_file = pwin_files[0]
+            bs = pwxml.get_band_structure(
+                line_mode=True, kpoints_filename=pwin_file
+            )
+            bandstructures.append(bs)
+        bs = get_reconstructed_band_structure(bandstructures)
 
     # currently not supported as it is a pain to make subplots within subplots,
     # although need to check this is still the case
@@ -361,6 +397,11 @@ def bandplot(
 
     dos_plotter = None
     dos_opts = None
+    if dos_file and code == "espresso":
+        logging.warning(
+            "WARNING: Reading espresso DOS is not currently implemented."
+        )
+        dos_file = None
     if dos_file:
         if code == "vasp":
             dos, pdos = load_dos(
@@ -387,7 +428,9 @@ def bandplot(
                 else:
                     logging.info(f"Found PDOS file {pdos_file}")
             else:
-                logging.info(f"Cell file {cell_file} does not exist, cannot plot PDOS.")
+                logging.info(
+                    f"Cell file {cell_file} does not exist, cannot plot PDOS."
+                )
 
             dos, pdos = read_castep_dos(
                 dos_file,
@@ -609,7 +652,8 @@ def _get_parser():
         "-c",
         "--code",
         default="vasp",
-        help="Electronic structure code (default: vasp)." '"questaal" also supported.',
+        help="Electronic structure code (default: vasp)."
+        '"questaal" also supported.',
     )
     parser.add_argument(
         "-p", "--prefix", metavar="P", help="prefix for the files generated"
@@ -750,7 +794,10 @@ def _get_parser():
         "--orbitals",
         type=_el_orb,
         metavar="O",
-        help=("orbitals to split into lm-decomposed " 'contributions (e.g. "Ru.d")'),
+        help=(
+            "orbitals to split into lm-decomposed "
+            'contributions (e.g. "Ru.d")'
+        ),
     )
     parser.add_argument(
         "--atoms",
@@ -814,7 +861,9 @@ def _get_parser():
     parser.add_argument(
         "--height", type=float, default=None, help="height of the graph"
     )
-    parser.add_argument("--width", type=float, default=None, help="width of the graph")
+    parser.add_argument(
+        "--width", type=float, default=None, help="width of the graph"
+    )
     parser.add_argument(
         "--ymin", type=float, default=-6.0, help="minimum energy on the y-axis"
     )
@@ -874,7 +923,9 @@ def main():
     colours.read(os.path.abspath(config_path))
 
     warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-    warnings.filterwarnings("ignore", category=UnicodeWarning, module="matplotlib")
+    warnings.filterwarnings(
+        "ignore", category=UnicodeWarning, module="matplotlib"
+    )
     warnings.filterwarnings("ignore", category=UserWarning, module="pymatgen")
 
     bandplot(

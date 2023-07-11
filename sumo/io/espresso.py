@@ -157,7 +157,7 @@ def prepare_pwins(
             )
             if pwin.system is None:
                 pwin.system = pwin.namelist_classes.system.value()
-            pwin.system.calculation = "bands"
+            pwin.control['calculation'] = "bands"
         pwin_files.append(pwin)
     return pwin_files
 

@@ -18,7 +18,7 @@ from pkg_resources import Requirement, resource_filename
 from pymatgen.electronic_structure.bandstructure import get_reconstructed_band_structure
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
-from pymatgen.io.espresso.pwxml import PWxml
+from pymatgen.io.espresso.outputs import PWxml
 
 mpl.use("Agg")
 
@@ -342,13 +342,6 @@ def bandplot(
             coords_are_cartesian=cart_coords,
         )
     elif code == "espresso":
-        if parse_projected:
-            logging.warning(
-                "ERROR: Parsing projected band structure from Quantum "
-                "ESPRESSO is not currently supported. Ignoring."
-            )
-            parse_projected = False
-            projection_selection = None
         for pwxml_file in filenames:
             pwxml = PWxml(pwxml_file, parse_projected_eigen=parse_projected)
             pwin_file = find_pwin_files(pwxml_file)

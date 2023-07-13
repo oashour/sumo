@@ -403,9 +403,7 @@ def bandplot(
                 else:
                     logging.info(f"Found PDOS file {pdos_file}")
             else:
-                logging.info(
-                    f"Cell file {cell_file} does not exist, cannot plot PDOS."
-                )
+                logging.info(f"Cell file {cell_file} does not exist, cannot plot PDOS.")
 
             dos, pdos = read_castep_dos(
                 dos_file,
@@ -769,10 +767,7 @@ def _get_parser():
         "--orbitals",
         type=_el_orb,
         metavar="O",
-        help=(
-            "orbitals to split into lm-decomposed "
-            'contributions (e.g. "Ru.d")'
-        ),
+        help=("orbitals to split into lm-decomposed " 'contributions (e.g. "Ru.d")'),
     )
     parser.add_argument(
         "--atoms",
@@ -836,9 +831,7 @@ def _get_parser():
     parser.add_argument(
         "--height", type=float, default=None, help="height of the graph"
     )
-    parser.add_argument(
-        "--width", type=float, default=None, help="width of the graph"
-    )
+    parser.add_argument("--width", type=float, default=None, help="width of the graph")
     parser.add_argument(
         "--ymin", type=float, default=-6.0, help="minimum energy on the y-axis"
     )
@@ -898,9 +891,7 @@ def main():
     colours.read(os.path.abspath(config_path))
 
     warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-    warnings.filterwarnings(
-        "ignore", category=UnicodeWarning, module="matplotlib"
-    )
+    warnings.filterwarnings("ignore", category=UnicodeWarning, module="matplotlib")
     warnings.filterwarnings("ignore", category=UserWarning, module="pymatgen")
 
     bandplot(

@@ -18,7 +18,7 @@ from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
 from pymatgen.io.espresso.pwxml import PWxml
 
-from sumo.cli.bandplot import find_vasprun_files, find_pwin_files
+from sumo.cli.bandplot import find_vasprun_files
 from sumo.electronic_structure.bandstructure import get_reconstructed_band_structure
 from sumo.electronic_structure.effective_mass import (
     fit_effective_mass,
@@ -104,10 +104,7 @@ def bandstats(
     elif code == "espresso":
         for pwxml_file in filenames:
             pwxml = PWxml(pwxml_file, parse_projected_eigen=False)
-            pwin_file = find_pwin_files(pwxml_file)
-            bs = pwxml.get_band_structure(
-                line_mode=True, kpoints_filename=pwin_file
-            )
+            bs = pwxml.get_band_structure(line_mode=True)
             bandstructures.append(bs)
 
     bs = get_reconstructed_band_structure(

@@ -104,7 +104,7 @@ def bandplot(
                 in the positions of high-symmetry points.
             Quantum ESPRESSO:
                 Path to pwscf XML files. Each XML file must have a corresponding
-                input file in the same directory, with the same name but a 
+                input file in the same directory, with the same name but a
                 ".in" or ".pwi" extension.
 
             If no filenames are provided, sumo
@@ -344,10 +344,7 @@ def bandplot(
     elif code == "espresso":
         for pwxml_file in filenames:
             pwxml = PWxml(pwxml_file, parse_projected_eigen=parse_projected)
-            pwin_file = find_pwin_files(pwxml_file)
-            bs = pwxml.get_band_structure(
-                line_mode=True, kpoints_filename=pwin_file
-            )
+            bs = pwxml.get_band_structure(line_mode=True)
             bandstructures.append(bs)
         bs = get_reconstructed_band_structure(bandstructures)
 
@@ -495,28 +492,6 @@ def bandplot(
 
     else:
         return plt
-
-def find_pwin_files(pwxml_file):
-    """
-    Find the PWscf input file(s) corresponding to a given PWscf XML file.
-    
-    Searches for files with the same filename as the XML file, but with
-    extensions .in or .pwi. If both are found, the .in file is used.
-    """
-    pwin_files = [
-                pwxml_file.replace(".xml", ext) for ext in (".in", ".pwi")
-            ]
-    if not (pwin_files := [p for p in pwin_files if os.path.isfile(p)]):
-        raise FileNotFoundError(
-                    f"No valid PWscf input files found for {pwxml_file}"
-                )
-    if len(pwin_files) > 1:
-        logging.warning(
-                    "Found two suitable PWscf input files for %s. Using %s",
-                    pwxml_file,
-                    pwin_files[0],
-                )
-    return pwin_files[0]
 
 
 def find_vasprun_files():

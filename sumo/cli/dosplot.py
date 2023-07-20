@@ -22,6 +22,8 @@ from pkg_resources import Requirement, resource_filename
 
 mpl.use("Agg")
 
+from pymatgen.io.espresso.outputs import PWxml
+
 import sumo.io.castep
 import sumo.io.questaal
 from sumo.electronic_structure.bandstructure import string_to_spin
@@ -81,9 +83,9 @@ def dosplot(
         filename (:obj:`str`, optional): Path to a DOS data file (can be
             gzipped). The preferred file type depends on the electronic
             structure code: vasprun.xml (VASP); *.bands (CASTEP); dos.*
-            (Questaal).
+            (Questaal), or *.xml (Quantum Espresso).
         code (:obj:`str`, optional): Electronic structure code used ('vasp',
-              'castep' or 'questaal'). Note that for Castep only a rough TDOS
+              'castep', 'questaal' or 'espresso'). Note that for Castep only a rough TDOS
               is available, assembled by sampling the eigenvalues.
         prefix (:obj:`str`, optional): Prefix for file names.
         directory (:obj:`str`, optional): The directory in which to save files.
@@ -299,6 +301,18 @@ def dosplot(
             lm_orbitals=lm_orbitals,
             atoms=atoms,
         )
+    elif code.lower() == "espresso":
+        if not filename:
+            if os.path.exists("dos.xml"):
+                filename = "dos.xml"
+            else:
+                logging.error("ERROR: No PWxml found!")
+                sys.exit()
+
+        pwxml = PWxml(filename, parse_dos=True)
+        dos, pdos = load_dos(
+            pwxml, elements, lm_orbitals, atoms, gaussian, total_only
+        )
 
     else:
         logging.error(f"ERROR: Unrecognised code: {code}")
@@ -429,7 +443,8 @@ def _get_parser():
         "--code",
         default="vasp",
         metavar="C",
-        help=('Input file format: "vasp" (vasprun.xml) or ' '"questaal" (opt.ext)'),
+        help=('Input file format: "vasp" (vasprun.xml), "questaal" (opt.ext)'
+              ' or "espresso" (*.xml)'),
     )
     parser.add_argument(
         "-p", "--prefix", metavar="P", help="prefix for the files generated"

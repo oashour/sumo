@@ -372,11 +372,6 @@ def bandplot(
 
     dos_plotter = None
     dos_opts = None
-    if dos_file and code == "espresso":
-        logging.warning(
-            "WARNING: Reading espresso DOS is not currently implemented."
-        )
-        dos_file = None
     if dos_file:
         if code == "vasp":
             dos, pdos = load_dos(
@@ -413,6 +408,17 @@ def bandplot(
                 lm_orbitals=lm_orbitals,
                 elements=elements,
                 efermi_to_vbm=True,
+            )
+        elif code == "espresso":
+            pwxml = PWxml(dos_file, parse_dos=True)
+            dos, pdos = load_dos(
+                pwxml,
+                elements,
+                lm_orbitals,
+                atoms,
+                gaussian,
+                total_only,
+                scissor=scissor,
             )
 
         dos_plotter = SDOSPlotter(dos, pdos)

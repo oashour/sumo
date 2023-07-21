@@ -61,6 +61,8 @@ class SBSPlotter(BSPlotter):
             self.bs = self._bs[0]
             self.nbands = self._nb_bands[0]
         else:
+            self._bs = [self._bs]
+            self._nb_bands = [self._nb_bands]
             self.bs = self._bs
             self.nbands = self._nb_bands
 
@@ -96,9 +98,7 @@ class SBSPlotter(BSPlotter):
             elif key == "energy":
                 shifted_data["energy"] = {}
                 for spin, energies in value.items():
-                    shifted_data["energy"][spin] = [
-                        array + energy_shift for array in energies
-                    ]
+                    shifted_data["energy"][spin] = [array + energy_shift for array in energies]
             elif key == "zero_energy":
                 shifted_data[key] = zero_energy
             else:
@@ -129,6 +129,7 @@ class SBSPlotter(BSPlotter):
         fonts=None,
         style=None,
         no_base_style=False,
+        legend_labels=None,
     ):
         """Get a :obj:`matplotlib.pyplot` object of the band structure.
 
@@ -243,58 +244,30 @@ class SBSPlotter(BSPlotter):
             plt = pretty_plot(width=width, height=height, dpi=dpi, plt=plt)
             ax = plt.gca()
 
-        data = self.bs_plot_data(zero_to_efermi=True)
-        if zero_energy is not None:
-            data = self._reset_zero_energy(data, zero_energy=zero_energy)
-
-        dists = data["distances"]
-        eners = data["energy"]
-
-        if spin is not None and not self.bs.is_spin_polarized:
+        if len(self._bs) > 1 and spin is None:
             raise ValueError(
-                "Spin-selection only possible with spin-polarised "
-                "calculation results"
-            )
-        elif self.bs.is_metal() or (self.bs.is_spin_polarized and not spin):
-            # if metal or spin polarized and spin not specified
-            is_vb = [True]
-        elif spin:
-            # not metal, spin-polarized and spin is set
-            is_vb = self.bs.bands[spin] <= self.bs.get_vbm()["energy"]
-        else:
-            # not metal, not spin polarized and therefore spin not set
-            is_vb = self.bs.bands[Spin.up] <= self.bs.get_vbm()["energy"]
-
-        # nd is branch index, nb is band index, nk is kpoint index
-        for nd, nb in it.product(range(len(data["distances"])), range(self.nbands)):
-            e = (
-                eners[str(spin)][nd][nb]
-                if spin is not None
-                else eners[str(Spin.up)][nd][nb]
+                "Plotting multiple band structures requires specifying spin channel"
             )
 
-            # For closed-shell calculations with a bandgap, colour valence
-            # bands blue (C0) and conduction bands orange (C1)
-            #
-            # For closed-shell calculations with no bandgap, colour with C0
-            #
-            # For spin-polarized calculations, colour spin up channel with C1
-            # and overlay with C0 (dashed) spin down channel
+        for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
+            data = self.bs_plot_data(bs=bs, zero_to_efermi=True)
+            if zero_energy is not None:
+                data = self._reset_zero_energy(data, zero_energy=zero_energy)
 
-            if self.bs.is_spin_polarized and spin is None:
-                c = "C1"
-            elif self.bs.is_metal() or np.all(is_vb[nb]):
-                c = "C0"
-            else:
-                c = "C1"
+            dists = data["distances"]
+            eners = data["energy"]
+            colours, linestyles = self._get_colors_linestyles(bs, bs_index, spin)
 
-            ax.plot(dists[nd], e, ls="-", c=c, zorder=1)
+            # nd is branch index, nb is band index, nk is kpoint index
+            for nd, nb in it.product(range(len(dists)), range(nbands)):
+                e = eners[str(spin)][nd][nb] if spin is not None else eners[str(Spin.up)][nd][nb]
+                ax.plot(dists[nd], e, ls=linestyles[0], c=colours[0][nb], zorder=1)
 
-        # Plot second spin channel if it exists and no spin selected
-        if self.bs.is_spin_polarized and spin is None:
-            for nd, nb in it.product(range(len(data["distances"])), range(self.nbands)):
-                e = eners[str(Spin.down)][nd][nb]
-                ax.plot(dists[nd], e, c="C0", linestyle="--", zorder=2)
+            # Plot second spin channel if it exists and no spin selected
+            if bs.is_spin_polarized and spin is None:
+                for nd, nb in it.product(range(len(dists)), range(nbands)):
+                    e = eners[str(Spin.down)][nd][nb]
+                ax.plot(dists[nd], e, ls=linestyles[1], c=colours[1][nb], zorder=2)
 
         self._maketicks(ax, ylabel=ylabel)
 
@@ -317,6 +290,64 @@ class SBSPlotter(BSPlotter):
             spin=spin,
         )
         return plt
+
+    def _get_colors_linestyles(self, bs, bs_index, spin):
+        """
+        Gets the color and line style for a band structure.
+        * If plotting one band structure:
+            * The color is col_vb_metal if it's a valence band, a metal, 
+            spin up channel (if plotting both spins) or either spin channel
+            (if plotting only one channel).
+            * The color is col_cb_down if it's a conduction band or a spin down
+            channel (if plotting both spins).
+            * The line style is solid unless you're plotting a spin polarized 
+            band structure with both spins (spin=None), in which case the 
+            line style is dashed for the spin down
+        * If plotting multiple band structures, the line style loops through
+          bs_linestyles and the colors loop through bs_colors, independent
+          of being a metal or valence/conduction bands. 
+          You can't plot multiple spin channels at once.
+        
+        * Returns the color as a tuple of length 1 or 2 (depending on whether
+        spin is None or not), whose elements are a list representing the color
+        of each band,
+        * The line style as a tuple of length 1 or 2
+        """
+
+        # TODO: make these user adjustable
+        col_vb_metal = "C0" # Color of valence bands or metal
+        col_cb_down = "C1" # Color of conduction bands or spin down when doing both spins
+        bs_linestyles = ("-", "--", "-.", ":")
+        bs_colors = ("C0", "C1", "C2", "C3")
+
+        nbands = bs.nb_bands
+        num_bs = len(self._bs) # totoal number of band structures
+        if num_bs == 1:
+            ls = ("-", "--") if bs.is_spin_polarized and not spin else ("-",)
+
+            if spin is not None and not bs.is_spin_polarized:
+                raise ValueError(
+                    "Spin-selection only possible with spin-polarised " "calculation results"
+                )
+            elif bs.is_metal():
+                # If metal: all bands are col_vb 
+                c = ([col_vb_metal]*nbands,)
+            elif (bs.is_spin_polarized and not spin):
+                # If spin polarized and spin not specified (i.e., plotting both spins)
+                c = ([col_vb_metal]*nbands, [col_cb_down]*nbands)
+            elif spin:
+                # not metal, spin-polarized and spin is set
+                is_vb = bs.bands[spin] <= bs.get_vbm()["energy"]
+                c = ([col_vb_metal if np.all(is_vb[nb]) else col_cb_down for nb in range(nbands)],)
+            else:
+                # not metal, not spin polarized and therefore spin not set
+                is_vb = bs.bands[Spin.up] <= bs.get_vbm()["energy"]
+                c = ([col_vb_metal if np.all(is_vb[nb]) else col_cb_down for nb in range(nbands)],)
+        else:
+            c = ([bs_colors[bs_index % 4]]*nbands,)
+            ls = (bs_linestyles[bs_index % 4],)
+
+        return c, ls 
 
     @styled_plot(sumo_base_style, sumo_bs_style)
     def get_projected_plot(
@@ -543,8 +574,7 @@ class SBSPlotter(BSPlotter):
         spins = sorted(self.bs.bands.keys(), key=lambda s: -s.value)
         if spin is not None and len(spins) == 1:
             raise ValueError(
-                "Spin-selection only possible with spin-polarised "
-                "calculation results"
+                "Spin-selection only possible with spin-polarised " "calculation results"
             )
 
         if spin is Spin.up:
@@ -556,12 +586,10 @@ class SBSPlotter(BSPlotter):
 
         # nd is branch index
         for spin, nd in it.product(spins, range(nbranches)):
-
             # mask data to reduce plotting load
             bands = np.array(data["energy"][str(spin)][nd])
             mask = np.where(
-                np.any(bands > ymin - 0.05, axis=1)
-                & np.any(bands < ymax + 0.05, axis=1)
+                np.any(bands > ymin - 0.05, axis=1) & np.any(bands < ymax + 0.05, axis=1)
             )
             distances = data["distances"][nd]
             bands = bands[mask]
@@ -597,7 +625,6 @@ class SBSPlotter(BSPlotter):
             weights[weights < 0] = 0
 
             if mode == "rgb":
-
                 # colours aren't used now but needed later for legend
                 colours = [color1, color2, color3]
 
@@ -853,9 +880,7 @@ class SBSPlotter(BSPlotter):
 
         if r"$\mid$" in labelgroup:
             label_components = labelgroup.split(r"$\mid$")
-            good_labels = [
-                i for i in map(cls._sanitise_label, label_components) if i is not None
-            ]
+            good_labels = [i for i in map(cls._sanitise_label, label_components) if i is not None]
             if len(good_labels) == 0:
                 return None
             else:

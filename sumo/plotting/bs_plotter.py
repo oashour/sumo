@@ -12,6 +12,7 @@ import numpy as np
 from matplotlib import cycler, rcParams
 from matplotlib.style import context
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
+import matplotlib.lines as mlines
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.electronic_structure.plotter import BSPlotter
 from scipy.interpolate import interp1d
@@ -129,7 +130,8 @@ class SBSPlotter(BSPlotter):
         fonts=None,
         style=None,
         no_base_style=False,
-        legend_labels=None,
+        bs_labels=None,
+        spin_legend=True,
     ):
         """Get a :obj:`matplotlib.pyplot` object of the band structure.
 
@@ -224,7 +226,10 @@ class SBSPlotter(BSPlotter):
             no_base_style (:obj:`bool`, optional): Prevent use of sumo base
                 style. This can make alternative styles behave more
                 predictably.
-
+            labels (:obj:`list`, optional): A list of labels for each band
+                structure (if plotting multiple).
+            spin_legend (:obj:`bool`, optional): whether to add a legend for
+                spin channels (only relevant if spin is None)
         Returns:
             :obj:`matplotlib.pyplot`: The electronic band structure plot.
         """
@@ -256,18 +261,37 @@ class SBSPlotter(BSPlotter):
 
             dists = data["distances"]
             eners = data["energy"]
-            colours, linestyles = self._get_colors_linestyles(bs, bs_index, spin)
+            colors, linestyles = self._get_colors_linestyles(bs, bs_index, spin)
+            print(colors)
 
             # nd is branch index, nb is band index, nk is kpoint index
             for nd, nb in it.product(range(len(dists)), range(nbands)):
                 e = eners[str(spin)][nd][nb] if spin is not None else eners[str(Spin.up)][nd][nb]
-                ax.plot(dists[nd], e, ls=linestyles[0], c=colours[0][nb], zorder=1)
+                ax.plot(dists[nd], e, ls=linestyles[0], c=colors[0][nb], zorder=1)
 
             # Plot second spin channel if it exists and no spin selected
             if bs.is_spin_polarized and spin is None:
                 for nd, nb in it.product(range(len(dists)), range(nbands)):
                     e = eners[str(Spin.down)][nd][nb]
-                ax.plot(dists[nd], e, ls=linestyles[1], c=colours[1][nb], zorder=2)
+                    ax.plot(dists[nd], e, ls=linestyles[1], c=colors[1][nb], zorder=2)
+
+        if spin is None and spin_legend:
+            if dos_plotter:
+                loc = 1
+                anchor_point = (-0.2, 1)
+            else:
+                loc = 2
+                anchor_point = (0.95, 1)
+            # Proxy artists for making legend
+            handles = [
+                mlines.Line2D([], [], color=colors[0][0], linestyle=linestyles[0], label='Up'),
+                mlines.Line2D([], [], color=colors[1][0], linestyle=linestyles[1], label='Down'),
+            ]
+            ax.legend(handles=handles, ncol=1, loc=loc, 
+                      bbox_to_anchor=anchor_point,
+                      frameon=False,
+                      handletextpad=0.1,
+                      borderaxespad=0.75,)
 
         self._maketicks(ax, ylabel=ylabel)
 
@@ -329,12 +353,12 @@ class SBSPlotter(BSPlotter):
                 raise ValueError(
                     "Spin-selection only possible with spin-polarised " "calculation results"
                 )
-            elif bs.is_metal():
-                # If metal: all bands are col_vb 
-                c = ([col_vb_metal]*nbands,)
             elif (bs.is_spin_polarized and not spin):
                 # If spin polarized and spin not specified (i.e., plotting both spins)
                 c = ([col_vb_metal]*nbands, [col_cb_down]*nbands)
+            elif bs.is_metal():
+                # If metal: all bands are col_vb 
+                c = ([col_vb_metal]*nbands,)
             elif spin:
                 # not metal, spin-polarized and spin is set
                 is_vb = bs.bands[spin] <= bs.get_vbm()["energy"]

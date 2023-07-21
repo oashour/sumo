@@ -249,10 +249,10 @@ class SBSPlotter(BSPlotter):
             plt = pretty_plot(width=width, height=height, dpi=dpi, plt=plt)
             ax = plt.gca()
 
-        if len(self._bs) > 1 and spin is None:
-            raise ValueError(
-                "Plotting multiple band structures requires specifying spin channel"
-            )
+        any_spin_polarized = any(bs.is_spin_polarized for bs in self._bs)
+        num_bs = len(self._bs)
+        if any_spin_polarized and spin is None and num_bs > 1:
+            raise ValueError("Plotting multiple band structures requires specifying spin channel")
 
         for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
             data = self.bs_plot_data(bs=bs, zero_to_efermi=True)
@@ -261,8 +261,7 @@ class SBSPlotter(BSPlotter):
 
             dists = data["distances"]
             eners = data["energy"]
-            colors, linestyles = self._get_colors_linestyles(bs, bs_index, spin)
-            print(colors)
+            colors, linestyles = self._get_colors_linestyles(num_bs, bs, bs_index, spin)
 
             # nd is branch index, nb is band index, nk is kpoint index
             for nd, nb in it.product(range(len(dists)), range(nbands)):
@@ -275,23 +274,13 @@ class SBSPlotter(BSPlotter):
                     e = eners[str(Spin.down)][nd][nb]
                     ax.plot(dists[nd], e, ls=linestyles[1], c=colors[1][nb], zorder=2)
 
-        if spin is None and spin_legend:
-            if dos_plotter:
-                loc = 1
-                anchor_point = (-0.2, 1)
-            else:
-                loc = 2
-                anchor_point = (0.95, 1)
-            # Proxy artists for making legend
-            handles = [
-                mlines.Line2D([], [], color=colors[0][0], linestyle=linestyles[0], label='Up'),
-                mlines.Line2D([], [], color=colors[1][0], linestyle=linestyles[1], label='Down'),
-            ]
-            ax.legend(handles=handles, ncol=1, loc=loc, 
-                      bbox_to_anchor=anchor_point,
-                      frameon=False,
-                      handletextpad=0.1,
-                      borderaxespad=0.75,)
+        if spin_legend and spin is None and any_spin_polarized:
+            self._make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels=None)
+        elif bs_labels and num_bs > 1:
+            # TODO: these should be user adjustable and read from a config file
+            linestyles = ["-", "--", "-.", ":"]
+            colors = ["C0", "C1", "C2", "C3"]
+            self._make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels)
 
         self._maketicks(ax, ylabel=ylabel)
 
@@ -315,23 +304,62 @@ class SBSPlotter(BSPlotter):
         )
         return plt
 
-    def _get_colors_linestyles(self, bs, bs_index, spin):
+    @staticmethod
+    def _make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels=None):
+        """
+        Adds a legend to the axes.
+        """
+        if bs_labels is None:
+            handles = [
+                mlines.Line2D([], [], color=colors[0][0], linestyle=linestyles[0], label="Up"),
+                mlines.Line2D([], [], color=colors[1][0], linestyle=linestyles[1], label="Down"),
+            ]
+        else:
+            spin_label = f" ({spin.name.capitalize()})" if spin is not None else ""
+            handles = [
+                mlines.Line2D(
+                    [],
+                    [],
+                    color=colors[i],
+                    linestyle=linestyles[i],
+                    label=f"{label}{spin_label}",
+                )
+                for i, label in enumerate(bs_labels)
+            ]
+        if dos_plotter:
+            loc = 1
+            anchor_point = (-0.2, 1)
+        else:
+            loc = 2
+            anchor_point = (0.95, 1)
+        ax.legend(
+            handles=handles,
+            ncol=1,
+            loc=loc,
+            bbox_to_anchor=anchor_point,
+            frameon=False,
+            handletextpad=0.25,
+            borderaxespad=0.75,
+        )
+
+    @staticmethod
+    def _get_colors_linestyles(num_bs, bs, bs_index, spin):
         """
         Gets the color and line style for a band structure.
         * If plotting one band structure:
-            * The color is col_vb_metal if it's a valence band, a metal, 
+            * The color is col_vb_metal if it's a valence band, a metal,
             spin up channel (if plotting both spins) or either spin channel
             (if plotting only one channel).
             * The color is col_cb_down if it's a conduction band or a spin down
             channel (if plotting both spins).
-            * The line style is solid unless you're plotting a spin polarized 
-            band structure with both spins (spin=None), in which case the 
+            * The line style is solid unless you're plotting a spin polarized
+            band structure with both spins (spin=None), in which case the
             line style is dashed for the spin down
         * If plotting multiple band structures, the line style loops through
           bs_linestyles and the colors loop through bs_colors, independent
-          of being a metal or valence/conduction bands. 
+          of being a metal or valence/conduction bands.
           You can't plot multiple spin channels at once.
-        
+
         * Returns the color as a tuple of length 1 or 2 (depending on whether
         spin is None or not), whose elements are a list representing the color
         of each band,
@@ -339,13 +367,13 @@ class SBSPlotter(BSPlotter):
         """
 
         # TODO: make these user adjustable
-        col_vb_metal = "C0" # Color of valence bands or metal
-        col_cb_down = "C1" # Color of conduction bands or spin down when doing both spins
+        col_vb_metal = "C0"  # Color of valence bands or metal
+        col_cb_down = "C1"  # Color of conduction bands or spin down when doing both spins
+        # FIXME: these are repeated when setting the colors and linestyles
         bs_linestyles = ("-", "--", "-.", ":")
         bs_colors = ("C0", "C1", "C2", "C3")
 
         nbands = bs.nb_bands
-        num_bs = len(self._bs) # totoal number of band structures
         if num_bs == 1:
             ls = ("-", "--") if bs.is_spin_polarized and not spin else ("-",)
 
@@ -353,12 +381,12 @@ class SBSPlotter(BSPlotter):
                 raise ValueError(
                     "Spin-selection only possible with spin-polarised " "calculation results"
                 )
-            elif (bs.is_spin_polarized and not spin):
+            elif bs.is_spin_polarized and not spin:
                 # If spin polarized and spin not specified (i.e., plotting both spins)
-                c = ([col_vb_metal]*nbands, [col_cb_down]*nbands)
+                c = ([col_vb_metal] * nbands, [col_cb_down] * nbands)
             elif bs.is_metal():
-                # If metal: all bands are col_vb 
-                c = ([col_vb_metal]*nbands,)
+                # If metal: all bands are col_vb
+                c = ([col_vb_metal] * nbands,)
             elif spin:
                 # not metal, spin-polarized and spin is set
                 is_vb = bs.bands[spin] <= bs.get_vbm()["energy"]
@@ -368,10 +396,10 @@ class SBSPlotter(BSPlotter):
                 is_vb = bs.bands[Spin.up] <= bs.get_vbm()["energy"]
                 c = ([col_vb_metal if np.all(is_vb[nb]) else col_cb_down for nb in range(nbands)],)
         else:
-            c = ([bs_colors[bs_index % 4]]*nbands,)
+            c = ([bs_colors[bs_index % 4]] * nbands,)
             ls = (bs_linestyles[bs_index % 4],)
 
-        return c, ls 
+        return c, ls
 
     @styled_plot(sumo_base_style, sumo_bs_style)
     def get_projected_plot(

@@ -597,8 +597,13 @@ class SBSPlotter(BSPlotter):
         """
         if mode == "rgb" and len(selection) > 3:
             raise ValueError("Too many elements/orbitals specified (max 3)")
+        # FIXME: mode = solo is legacy?
         elif mode == "solo" and dos_plotter:
             raise ValueError("Solo mode plotting with DOS not supported")
+        if len(self._bs) > 1:
+            raise ValueError(
+                "Projected band structure plotting not supported for multiple band structures"
+            )
 
         if dos_plotter:
             plt = pretty_subplot(

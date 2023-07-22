@@ -249,9 +249,11 @@ class SBSPlotter(BSPlotter):
             plt = pretty_plot(width=width, height=height, dpi=dpi, plt=plt)
             ax = plt.gca()
 
-        any_spin_polarized = any(bs.is_spin_polarized for bs in self._bs)
-        num_bs = len(self._bs)
-        if any_spin_polarized and spin is None and num_bs > 1:
+        if (
+            (num_bs := len(self._bs)) > 1
+            and spin is None
+            and any(bs.is_spin_polarized for bs in self._bs)
+        ):
             raise ValueError("Plotting multiple band structures requires specifying spin channel")
 
         for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
@@ -274,11 +276,15 @@ class SBSPlotter(BSPlotter):
                     e = eners[str(Spin.down)][nd][nb]
                     ax.plot(dists[nd], e, ls=linestyles[1], c=colors[1][nb], zorder=2)
 
-        if spin_legend and spin is None and any_spin_polarized:
-            self._make_legend(ax, dos_plotter, spin, bs_labels=None)
-        elif bs_labels and num_bs > 1:
-            self._make_legend(ax, dos_plotter, spin, bs_labels)
+        # if num_bs > 1 or spin_legend:
+        #    self._make_legend(ax, dos_plotter, spin, bs_labels)
 
+        # if (spin_legend and spin is None) and any_spin_polarized:
+        #    self._make_legend(ax, dos_plotter, spin, bs_labels=None)
+        # elif bs_labels and num_bs > 1:
+        #    self._make_legend(ax, dos_plotter, spin, bs_labels)
+
+        self._make_legend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter)
         self._maketicks(ax, ylabel=ylabel)
 
         self._makeplot(
@@ -302,16 +308,27 @@ class SBSPlotter(BSPlotter):
         return plt
 
     @staticmethod
-    def _make_legend(ax, dos_plotter, spin, bs_labels=None):
+    def _make_legend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter):
         """
-        Adds a legend to the axes.
+        Adds a legend to the axes, if required.
         """
-        if bs_labels is None:
+        if num_bs == 1:
+            bs_labels = None
+        elif bs_labels is not None:
+            # Pad or trim bs_labels to match number of band structures
+            bs_labels += ["?"] * (num_bs - len(bs_labels))
+            bs_labels = bs_labels[:num_bs]
+            spin_legend = False
+        if spin is not None and spin_legend:
+            spin_legend = False
+
+        handles = []
+        if spin_legend:
             handles = [
                 mlines.Line2D([], [], color="C0", linestyle="-", label="Up"),
                 mlines.Line2D([], [], color="C1", linestyle="--", label="Down"),
             ]
-        else:
+        elif bs_labels is not None:
             linestyles = ["-", "--", "-.", ":"]
             colors = rcParams["axes.prop_cycle"].by_key()["color"]
             spin_label = f" ({spin.name.capitalize()})" if spin is not None else ""
@@ -325,21 +342,22 @@ class SBSPlotter(BSPlotter):
                 )
                 for i, label in enumerate(bs_labels)
             ]
-        if dos_plotter:
-            loc = 1
-            anchor_point = (-0.2, 1)
-        else:
-            loc = 2
-            anchor_point = (0.95, 1)
-        ax.legend(
-            handles=handles,
-            ncol=1,
-            loc=loc,
-            bbox_to_anchor=anchor_point,
-            frameon=False,
-            handletextpad=0.25,
-            borderaxespad=0.75,
-        )
+        if handles:
+            if dos_plotter:
+                loc = 1
+                anchor_point = (-0.2, 1)
+            else:
+                loc = 2
+                anchor_point = (0.95, 1)
+            ax.legend(
+                handles=handles,
+                ncol=1,
+                loc=loc,
+                bbox_to_anchor=anchor_point,
+                frameon=False,
+                handletextpad=0.25,
+                borderaxespad=0.75,
+            )
 
     @staticmethod
     def _get_colors_linestyles(num_bs, bs, bs_index, spin):

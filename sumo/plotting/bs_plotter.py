@@ -275,12 +275,9 @@ class SBSPlotter(BSPlotter):
                     ax.plot(dists[nd], e, ls=linestyles[1], c=colors[1][nb], zorder=2)
 
         if spin_legend and spin is None and any_spin_polarized:
-            self._make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels=None)
+            self._make_legend(ax, dos_plotter, spin, bs_labels=None)
         elif bs_labels and num_bs > 1:
-            # TODO: these should be user adjustable and read from a config file
-            linestyles = ["-", "--", "-.", ":"]
-            colors = ["C0", "C1", "C2", "C3"]
-            self._make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels)
+            self._make_legend(ax, dos_plotter, spin, bs_labels)
 
         self._maketicks(ax, ylabel=ylabel)
 
@@ -305,23 +302,25 @@ class SBSPlotter(BSPlotter):
         return plt
 
     @staticmethod
-    def _make_legend(ax, dos_plotter, spin, colors, linestyles, bs_labels=None):
+    def _make_legend(ax, dos_plotter, spin, bs_labels=None):
         """
         Adds a legend to the axes.
         """
         if bs_labels is None:
             handles = [
-                mlines.Line2D([], [], color=colors[0][0], linestyle=linestyles[0], label="Up"),
-                mlines.Line2D([], [], color=colors[1][0], linestyle=linestyles[1], label="Down"),
+                mlines.Line2D([], [], color="C0", linestyle="-", label="Up"),
+                mlines.Line2D([], [], color="C1", linestyle="--", label="Down"),
             ]
         else:
+            linestyles = ["-", "--", "-.", ":"]
+            colors = rcParams["axes.prop_cycle"].by_key()["color"]
             spin_label = f" ({spin.name.capitalize()})" if spin is not None else ""
             handles = [
                 mlines.Line2D(
                     [],
                     [],
-                    color=colors[i],
-                    linestyle=linestyles[i],
+                    c=colors[i % len(colors)],
+                    linestyle=linestyles[i % 4],
                     label=f"{label}{spin_label}",
                 )
                 for i, label in enumerate(bs_labels)
@@ -347,57 +346,51 @@ class SBSPlotter(BSPlotter):
         """
         Gets the color and line style for a band structure.
         * If plotting one band structure:
-            * The color is col_vb_metal if it's a valence band, a metal,
+            * The color is "C0" if it's a valence band, a metal,
             spin up channel (if plotting both spins) or either spin channel
             (if plotting only one channel).
-            * The color is col_cb_down if it's a conduction band or a spin down
+            * The color is "C1" if it's a conduction band or a spin down
             channel (if plotting both spins).
             * The line style is solid unless you're plotting a spin polarized
             band structure with both spins (spin=None), in which case the
-            line style is dashed for the spin down
+            line style is dashed for the spin down bands
         * If plotting multiple band structures, the line style loops through
           bs_linestyles and the colors loop through bs_colors, independent
           of being a metal or valence/conduction bands.
           You can't plot multiple spin channels at once.
 
         * Returns the color as a tuple of length 1 or 2 (depending on whether
-        spin is None or not), whose elements are a list representing the color
+        spin is set), whose elements are a list representing the color
         of each band,
         * The line style as a tuple of length 1 or 2
         """
 
-        # TODO: make these user adjustable
-        col_vb_metal = "C0"  # Color of valence bands or metal
-        col_cb_down = "C1"  # Color of conduction bands or spin down when doing both spins
-        # FIXME: these are repeated when setting the colors and linestyles
-        bs_linestyles = ("-", "--", "-.", ":")
-        bs_colors = ("C0", "C1", "C2", "C3")
-
         nbands = bs.nb_bands
         if num_bs == 1:
             ls = ("-", "--") if bs.is_spin_polarized and not spin else ("-",)
-
             if spin is not None and not bs.is_spin_polarized:
                 raise ValueError(
-                    "Spin-selection only possible with spin-polarised " "calculation results"
+                    "Spin-selection only possible with spin-polarised calculation results"
                 )
             elif bs.is_spin_polarized and not spin:
                 # If spin polarized and spin not specified (i.e., plotting both spins)
-                c = ([col_vb_metal] * nbands, [col_cb_down] * nbands)
+                c = (["C0"] * nbands, ["C1"] * nbands)
             elif bs.is_metal():
                 # If metal: all bands are col_vb
-                c = ([col_vb_metal] * nbands,)
+                c = (["C0"] * nbands,)
             elif spin:
                 # not metal, spin-polarized and spin is set
                 is_vb = bs.bands[spin] <= bs.get_vbm()["energy"]
-                c = ([col_vb_metal if np.all(is_vb[nb]) else col_cb_down for nb in range(nbands)],)
+                c = (["C0" if np.all(is_vb[nb]) else "C1" for nb in range(nbands)],)
             else:
                 # not metal, not spin polarized and therefore spin not set
                 is_vb = bs.bands[Spin.up] <= bs.get_vbm()["energy"]
-                c = ([col_vb_metal if np.all(is_vb[nb]) else col_cb_down for nb in range(nbands)],)
+                c = (["C0" if np.all(is_vb[nb]) else "C1" for nb in range(nbands)],)
         else:
-            c = ([bs_colors[bs_index % 4]] * nbands,)
-            ls = (bs_linestyles[bs_index % 4],)
+            linestyles = ["-", "--", "-.", ":"]
+            colors = rcParams["axes.prop_cycle"].by_key()["color"]
+            c = ([colors[bs_index % len(colors)]] * nbands,)
+            ls = (linestyles[bs_index % 4],)
 
         return c, ls
 
@@ -865,6 +858,7 @@ class SBSPlotter(BSPlotter):
         """This is basically the same as the SDOSPlotter get_plot function."""
 
         # don't use first 4 colours; these are the band structure line colours
+        # FIXME: does the band structure still use the first 4 colors or just 2?
         cycle = cycler("color", rcParams["axes.prop_cycle"].by_key()["color"][4:])
         with context({"axes.prop_cycle": cycle}):
             plot_data = dos_plotter.dos_plot_data(**dos_options)

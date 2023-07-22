@@ -207,7 +207,7 @@ Detailed requirements
 Sumo is currently compatible with Python 3.5+ and relies on a number of
 open-source python packages, specifically:
 
-- Pymatgen_ (version >= 2017.12.30)
+- Pymatgen_ (version >=2020.10.20)
 - Numpy_
 - Scipy_
 - Matplotlib_

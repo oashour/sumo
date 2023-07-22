@@ -7,6 +7,7 @@ This module provides a class for plotting electronic band structure diagrams.
 
 import itertools as it
 import logging
+import re
 
 import numpy as np
 from matplotlib import cycler, rcParams
@@ -92,11 +93,10 @@ class SBSPlotter(BSPlotter):
                     (pt[0], pt[1] + energy_shift) for pt in value
                 ]
             elif key == "energy":
-                shifted_data["energy"] = {}
-                for spin, energies in value.items():
-                    shifted_data["energy"][spin] = [
-                        array + energy_shift for array in energies
-                    ]
+                shifted_data["energy"] = {
+                    spin: [array + energy_shift for array in energies]
+                    for spin, energies in value.items()
+                }
             elif key == "zero_energy":
                 shifted_data[key] = zero_energy
             else:
@@ -124,9 +124,9 @@ class SBSPlotter(BSPlotter):
         dos_aspect=3,
         aspect=None,
         spin=None,
-        fonts=None,
-        style=None,
-        no_base_style=False,
+        fonts=None,  # pylint: disable=unused-argument
+        style=None,  # pylint: disable=unused-argument
+        no_base_style=False,  # pylint: disable=unused-argument
         bs_labels=None,
         spin_legend=True,
     ):
@@ -256,7 +256,8 @@ class SBSPlotter(BSPlotter):
             )
         if spin is not None and not self.bs.is_spin_polarized:
             raise ValueError(
-                "Spin-selection only possible with spin-polarised calculation results"
+                "Spin-selection only possible with "
+                "spin-polarised calculation results"
             )
 
         for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
@@ -292,14 +293,6 @@ class SBSPlotter(BSPlotter):
                         c=colors[1][nb],
                         zorder=2,
                     )
-
-        # if num_bs > 1 or spin_legend:
-        #    self._make_legend(ax, dos_plotter, spin, bs_labels)
-
-        # if (spin_legend and spin is None) and any_spin_polarized:
-        #    self._make_legend(ax, dos_plotter, spin, bs_labels=None)
-        # elif bs_labels and num_bs > 1:
-        #    self._make_legend(ax, dos_plotter, spin, bs_labels)
 
         self._make_legend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter)
         self._maketicks(ax, ylabel=ylabel)
@@ -406,7 +399,7 @@ class SBSPlotter(BSPlotter):
         if num_bs == 1:
             ls = ("-", "--") if bs.is_spin_polarized and not spin else ("-",)
             if bs.is_spin_polarized and not spin:
-                # If spin polarized and spin not specified (i.e., plotting both spins)
+                # If spin polarized and spin not specified
                 c = (["C0"] * nbands, ["C1"] * nbands)
             elif bs.is_metal():
                 # If metal: all bands are col_vb
@@ -467,9 +460,9 @@ class SBSPlotter(BSPlotter):
         plot_dos_legend=True,
         dos_aspect=3,
         aspect=None,
-        fonts=None,
-        style=None,
-        no_base_style=False,
+        fonts=None,  # pylint: disable=unused-argument
+        style=None,  # pylint: disable=unused-argument
+        no_base_style=False,  # pylint: disable=unused-argument
         spin=None,
     ):
         """Get a :obj:`matplotlib.pyplot` of the projected band structure.
@@ -535,15 +528,15 @@ class SBSPlotter(BSPlotter):
                 lines). A larger number indicates greater interpolation.
             circle_size (:obj:`float`, optional): The area of the circles used
                 when ``mode = 'stacked'``.
-            color1 (str): A color specified in any way supported by matplotlib. Used
-                when ``mode = 'rgb'``.
-            color2 (str): A color specified in any way supported by matplotlib. Used
-                when ``mode = 'rgb'``.
-            color3 (str): A color specified in any way supported by matplotlib. Used
-                when ``mode = 'rgb'``.
-            colorspace (str): The colorspace in which to perform the interpolation. The
-                allowed values are rgb, hsv, lab, luvlc, lablch, and xyz. Used
-                when ``mode = 'rgb'``.
+            color1 (str): A color specified in any way supported by
+                matplotlib. Used when ``mode = 'rgb'``.
+            color2 (str): A color specified in any way supported by
+                matplotlib. Used when ``mode = 'rgb'``.
+            color3 (str): A color specified in any way supported by 
+                matplotlib. Used when ``mode = 'rgb'``.
+            colorspace (str): The colorspace in which to perform the 
+                interpolation. The allowed values are rgb, hsv, lab, luvlc, 
+                lablch, and xyz. Used when ``mode = 'rgb'``.
             projection_cutoff (:obj:`float`): Don't plot projections with
                 intensities below this number. This option is useful for
                 stacked plots, where small projections clutter the plot.
@@ -638,7 +631,8 @@ class SBSPlotter(BSPlotter):
             raise ValueError("Solo mode plotting with DOS not supported")
         if len(self._bs) > 1:
             raise ValueError(
-                "Projected band structure plotting not supported for multiple band structures"
+                "Projected band structure plotting not supported "
+                "for multiple band structures"
             )
 
         if dos_plotter:
@@ -716,8 +710,8 @@ class SBSPlotter(BSPlotter):
                     fill_value="extrapolate",
                 )(temp_dists)
                 distances = temp_dists
-
-            else:  # change from list to array if we skipped the scipy interpolation
+            # change from list to array if we skipped the scipy interpolation
+            else:
                 weights = np.array(weights)
                 bands = np.array(bands)
                 distances = np.array(distances)
@@ -782,10 +776,11 @@ class SBSPlotter(BSPlotter):
 
         # plot the legend
         for c, spec in zip(colours, selection):
-            if isinstance(spec, str):
-                label = spec
-            else:
-                label = f"{spec[0]} ({' + '.join(spec[1])})"
+            label = (
+                spec
+                if isinstance(spec, str)
+                else f"{spec[0]} ({' + '.join(spec[1])})"
+            )
             ax.scatter(
                 [-10000], [-10000], c=c, s=50, label=label, edgecolors="none"
             )
@@ -982,12 +977,7 @@ class SBSPlotter(BSPlotter):
     def _sanitise_label(label):
         """Implement label hacks: Hide trailing @, remove label with leading @"""
 
-        import re
-
-        if re.match("^@.*$", label):
-            return None
-        else:
-            return re.sub("@+$", "", label)
+        return None if re.match("^@.*$", label) else re.sub("@+$", "", label)
 
     @classmethod
     def _sanitise_label_group(cls, labelgroup):
@@ -996,19 +986,15 @@ class SBSPlotter(BSPlotter):
         Labels split with $\mid$ symbol will be treated for each part.
         """
 
-        if r"$\mid$" in labelgroup:
-            label_components = labelgroup.split(r"$\mid$")
-            good_labels = [
-                i
-                for i in map(cls._sanitise_label, label_components)
-                if i is not None
-            ]
-            if len(good_labels) == 0:
-                return None
-            else:
-                return r"$\mid$".join(good_labels)
-        else:
+        if r"$\mid$" not in labelgroup:
             return cls._sanitise_label(labelgroup)
+        label_components = labelgroup.split(r"$\mid$")
+        good_labels = [
+            i
+            for i in map(cls._sanitise_label, label_components)
+            if i is not None
+        ]
+        return r"$\mid$".join(good_labels) if good_labels else None
 
     def _maketicks(self, ax, ylabel="Energy (eV)"):
         """Utility method to add tick marks to a band structure."""
@@ -1030,17 +1016,15 @@ class SBSPlotter(BSPlotter):
                     # If a branch connection, check all parts of label
                     if r"$\mid$" in temp_ticks[i][1]:
                         label_components = temp_ticks[i][1].split(r"$\mid$")
-                        good_labels = [
+                        if good_labels := [
                             i for i in label_components if i[0] != "@"
-                        ]
-                        if len(good_labels) == 0:
-                            continue
-                        else:
+                        ]:
                             temp_ticks[i] = (
                                 temp_ticks[i][0],
                                 r"$\mid$".join(good_labels),
                             )
-                    # If a single label, check first character
+                        else:
+                            continue
                     elif temp_ticks[i][1][0] == "@":
                         continue
 
@@ -1051,7 +1035,7 @@ class SBSPlotter(BSPlotter):
 
         logging.info("Label positions:")
         for dist, label in list(zip(unique_d, unique_l)):
-            logging.info(f"\t{dist:.4f}: {label}")
+            logging.info("\t%.4f: %s", dist, label)
 
         ax.set_xticks(unique_d)
         ax.set_xticklabels(unique_l)

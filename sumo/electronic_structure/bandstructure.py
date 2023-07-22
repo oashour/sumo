@@ -283,9 +283,9 @@ def force_branches(bandstructure):
             tuple(k) in high_sym_kpoints
             and i != 0
             and i != len(kpoints) - 1
-            and (
-                not np.array_equal(kpoints[i + 1], k)
-                or not np.array_equal(kpoints[i - 1], k)
+            and not (
+                np.array_equal(kpoints[i + 1], k)
+                or np.array_equal(kpoints[i - 1], k)
             )
         ):
             dup_ids.append(i)

@@ -57,15 +57,8 @@ class SBSPlotter(BSPlotter):
 
         BSPlotter.__init__(self, bs)
 
-        # old versions of pymatgen only support a single band structure
-        if isinstance(self._bs, list):
-            self.bs = self._bs[0]
-            self.nbands = self._nb_bands[0]
-        else:
-            self._bs = [self._bs]
-            self._nb_bands = [self._nb_bands]
-            self.bs = self._bs
-            self.nbands = self._nb_bands
+        self.bs = self._bs[0]
+        self.nbands = self._nb_bands[0]
 
     @staticmethod
     def _reset_zero_energy(bs_plot_data, zero_energy=0.0):
@@ -95,11 +88,15 @@ class SBSPlotter(BSPlotter):
 
         for key, value in bs_plot_data.items():
             if key in ("vbm", "cbm"):
-                shifted_data[key] = [(pt[0], pt[1] + energy_shift) for pt in value]
+                shifted_data[key] = [
+                    (pt[0], pt[1] + energy_shift) for pt in value
+                ]
             elif key == "energy":
                 shifted_data["energy"] = {}
                 for spin, energies in value.items():
-                    shifted_data["energy"][spin] = [array + energy_shift for array in energies]
+                    shifted_data["energy"][spin] = [
+                        array + energy_shift for array in energies
+                    ]
             elif key == "zero_energy":
                 shifted_data[key] = zero_energy
             else:
@@ -254,7 +251,13 @@ class SBSPlotter(BSPlotter):
             and spin is None
             and any(bs.is_spin_polarized for bs in self._bs)
         ):
-            raise ValueError("Plotting multiple band structures requires specifying spin channel")
+            raise ValueError(
+                "Plotting multiple band structures requires spin-selection"
+            )
+        if spin is not None and not self.bs.is_spin_polarized:
+            raise ValueError(
+                "Spin-selection only possible with spin-polarised calculation results"
+            )
 
         for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
             data = self.bs_plot_data(bs=bs, zero_to_efermi=True)
@@ -263,18 +266,32 @@ class SBSPlotter(BSPlotter):
 
             dists = data["distances"]
             eners = data["energy"]
-            colors, linestyles = self._get_colors_linestyles(num_bs, bs, bs_index, spin)
+            colors, linestyles = self._get_colors_linestyles(
+                num_bs, bs, bs_index, spin
+            )
 
             # nd is branch index, nb is band index, nk is kpoint index
             for nd, nb in it.product(range(len(dists)), range(nbands)):
-                e = eners[str(spin)][nd][nb] if spin is not None else eners[str(Spin.up)][nd][nb]
-                ax.plot(dists[nd], e, ls=linestyles[0], c=colors[0][nb], zorder=1)
+                e = (
+                    eners[str(spin)][nd][nb]
+                    if spin is not None
+                    else eners[str(Spin.up)][nd][nb]
+                )
+                ax.plot(
+                    dists[nd], e, ls=linestyles[0], c=colors[0][nb], zorder=1
+                )
 
             # Plot second spin channel if it exists and no spin selected
             if bs.is_spin_polarized and spin is None:
                 for nd, nb in it.product(range(len(dists)), range(nbands)):
                     e = eners[str(Spin.down)][nd][nb]
-                    ax.plot(dists[nd], e, ls=linestyles[1], c=colors[1][nb], zorder=2)
+                    ax.plot(
+                        dists[nd],
+                        e,
+                        ls=linestyles[1],
+                        c=colors[1][nb],
+                        zorder=2,
+                    )
 
         # if num_bs > 1 or spin_legend:
         #    self._make_legend(ax, dos_plotter, spin, bs_labels)
@@ -331,7 +348,9 @@ class SBSPlotter(BSPlotter):
         elif bs_labels is not None:
             linestyles = ["-", "--", "-.", ":"]
             colors = rcParams["axes.prop_cycle"].by_key()["color"]
-            spin_label = f" ({spin.name.capitalize()})" if spin is not None else ""
+            spin_label = (
+                f" ({spin.name.capitalize()})" if spin is not None else ""
+            )
             handles = [
                 mlines.Line2D(
                     [],
@@ -386,11 +405,7 @@ class SBSPlotter(BSPlotter):
         nbands = bs.nb_bands
         if num_bs == 1:
             ls = ("-", "--") if bs.is_spin_polarized and not spin else ("-",)
-            if spin is not None and not bs.is_spin_polarized:
-                raise ValueError(
-                    "Spin-selection only possible with spin-polarised calculation results"
-                )
-            elif bs.is_spin_polarized and not spin:
+            if bs.is_spin_polarized and not spin:
                 # If spin polarized and spin not specified (i.e., plotting both spins)
                 c = (["C0"] * nbands, ["C1"] * nbands)
             elif bs.is_metal():
@@ -399,11 +414,21 @@ class SBSPlotter(BSPlotter):
             elif spin:
                 # not metal, spin-polarized and spin is set
                 is_vb = bs.bands[spin] <= bs.get_vbm()["energy"]
-                c = (["C0" if np.all(is_vb[nb]) else "C1" for nb in range(nbands)],)
+                c = (
+                    [
+                        "C0" if np.all(is_vb[nb]) else "C1"
+                        for nb in range(nbands)
+                    ],
+                )
             else:
                 # not metal, not spin polarized and therefore spin not set
                 is_vb = bs.bands[Spin.up] <= bs.get_vbm()["energy"]
-                c = (["C0" if np.all(is_vb[nb]) else "C1" for nb in range(nbands)],)
+                c = (
+                    [
+                        "C0" if np.all(is_vb[nb]) else "C1"
+                        for nb in range(nbands)
+                    ],
+                )
         else:
             linestyles = ["-", "--", "-.", ":"]
             colors = rcParams["axes.prop_cycle"].by_key()["color"]
@@ -642,7 +667,8 @@ class SBSPlotter(BSPlotter):
         spins = sorted(self.bs.bands.keys(), key=lambda s: -s.value)
         if spin is not None and len(spins) == 1:
             raise ValueError(
-                "Spin-selection only possible with spin-polarised " "calculation results"
+                "Spin-selection only possible with spin-polarised "
+                "calculation results"
             )
 
         if spin is Spin.up:
@@ -650,23 +676,30 @@ class SBSPlotter(BSPlotter):
         elif spin is Spin.down:
             spins = [spins[1]]
 
-        proj = get_projections_by_branches(self.bs, selection, normalise=normalise)
+        proj = get_projections_by_branches(
+            self.bs, selection, normalise=normalise
+        )
 
         # nd is branch index
         for spin, nd in it.product(spins, range(nbranches)):
             # mask data to reduce plotting load
             bands = np.array(data["energy"][str(spin)][nd])
             mask = np.where(
-                np.any(bands > ymin - 0.05, axis=1) & np.any(bands < ymax + 0.05, axis=1)
+                np.any(bands > ymin - 0.05, axis=1)
+                & np.any(bands < ymax + 0.05, axis=1)
             )
             distances = data["distances"][nd]
             bands = bands[mask]
             weights = [proj[nd][i][spin][mask] for i in range(len(selection))]
 
-            if len(distances) > 2:  # Only interpolate if it makes sense to do so
+            if (
+                len(distances) > 2
+            ):  # Only interpolate if it makes sense to do so
                 # interpolate band structure to improve smoothness
                 temp_dists = np.linspace(
-                    distances[0], distances[-1], len(distances) * interpolate_factor
+                    distances[0],
+                    distances[-1],
+                    len(distances) * interpolate_factor,
                 )
                 bands = interp1d(
                     distances,
@@ -698,7 +731,9 @@ class SBSPlotter(BSPlotter):
 
                 # if only two orbitals then just use red and blue
                 if len(weights) == 2:
-                    weights = np.insert(weights, 2, np.zeros(weights[0].shape), axis=0)
+                    weights = np.insert(
+                        weights, 2, np.zeros(weights[0].shape), axis=0
+                    )
                     colours = [color1, color2]
 
                 ls = "-" if spin == Spin.up else "--"
@@ -719,7 +754,13 @@ class SBSPlotter(BSPlotter):
                 # TODO: Handle spin
 
                 # use some nice custom colours first, then default colours
-                colours = ["#3952A3", "#FAA41A", "#67BC47", "#6ECCDD", "#ED2025"]
+                colours = [
+                    "#3952A3",
+                    "#FAA41A",
+                    "#67BC47",
+                    "#6ECCDD",
+                    "#ED2025",
+                ]
                 colour_series = rcParams["axes.prop_cycle"].by_key()["color"]
                 colours.extend(colour_series)
 
@@ -745,7 +786,9 @@ class SBSPlotter(BSPlotter):
                 label = spec
             else:
                 label = f"{spec[0]} ({' + '.join(spec[1])})"
-            ax.scatter([-10000], [-10000], c=c, s=50, label=label, edgecolors="none")
+            ax.scatter(
+                [-10000], [-10000], c=c, s=50, label=label, edgecolors="none"
+            )
 
         if dos_plotter:
             loc = 1
@@ -877,7 +920,9 @@ class SBSPlotter(BSPlotter):
 
         # don't use first 4 colours; these are the band structure line colours
         # FIXME: does the band structure still use the first 4 colors or just 2?
-        cycle = cycler("color", rcParams["axes.prop_cycle"].by_key()["color"][4:])
+        cycle = cycler(
+            "color", rcParams["axes.prop_cycle"].by_key()["color"][4:]
+        )
         with context({"axes.prop_cycle": cycle}):
             plot_data = dos_plotter.dos_plot_data(**dos_options)
 
@@ -885,7 +930,11 @@ class SBSPlotter(BSPlotter):
         energies = plot_data["energies"][mask]
         lines = plot_data["lines"]
         if spin is None:
-            spins = [Spin.up] if len(lines[0][0]["dens"]) == 1 else [Spin.up, Spin.down]
+            spins = (
+                [Spin.up]
+                if len(lines[0][0]["dens"]) == 1
+                else [Spin.up, Spin.down]
+            )
         elif isinstance(spin, Spin):
             spins = [spin]
         else:
@@ -949,7 +998,11 @@ class SBSPlotter(BSPlotter):
 
         if r"$\mid$" in labelgroup:
             label_components = labelgroup.split(r"$\mid$")
-            good_labels = [i for i in map(cls._sanitise_label, label_components) if i is not None]
+            good_labels = [
+                i
+                for i in map(cls._sanitise_label, label_components)
+                if i is not None
+            ]
             if len(good_labels) == 0:
                 return None
             else:
@@ -977,7 +1030,9 @@ class SBSPlotter(BSPlotter):
                     # If a branch connection, check all parts of label
                     if r"$\mid$" in temp_ticks[i][1]:
                         label_components = temp_ticks[i][1].split(r"$\mid$")
-                        good_labels = [i for i in label_components if i[0] != "@"]
+                        good_labels = [
+                            i for i in label_components if i[0] != "@"
+                        ]
                         if len(good_labels) == 0:
                             continue
                         else:

@@ -261,7 +261,7 @@ class SBSPlotter(BSPlotter):
             )
 
         for bs_index, (bs, nbands) in enumerate(zip(self._bs, self._nb_bands)):
-            data = self.bs_plot_data(bs=bs, zero_to_efermi=True)
+            data = self.bs_plot_data(bs=bs, bs_ref=self.bs, zero_to_efermi=True)
             if zero_energy is not None:
                 data = self._reset_zero_energy(data, zero_energy=zero_energy)
 

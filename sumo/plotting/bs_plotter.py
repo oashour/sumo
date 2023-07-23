@@ -267,7 +267,7 @@ class SBSPlotter(BSPlotter):
 
             dists = data["distances"]
             eners = data["energy"]
-            colors, linestyles = self._get_colors_linestyles(
+            colours, linestyles = self._get_colours_linestyles(
                 num_bs, bs, bs_index, spin
             )
 
@@ -279,7 +279,7 @@ class SBSPlotter(BSPlotter):
                     else eners[str(Spin.up)][nd][nb]
                 )
                 ax.plot(
-                    dists[nd], e, ls=linestyles[0], c=colors[0][nb], zorder=1
+                    dists[nd], e, ls=linestyles[0], c=colours[0][nb], zorder=1
                 )
 
             # Plot second spin channel if it exists and no spin selected
@@ -290,7 +290,7 @@ class SBSPlotter(BSPlotter):
                         dists[nd],
                         e,
                         ls=linestyles[1],
-                        c=colors[1][nb],
+                        c=colours[1][nb],
                         zorder=2,
                     )
 
@@ -335,12 +335,12 @@ class SBSPlotter(BSPlotter):
         handles = []
         if spin_legend:
             handles = [
-                mlines.Line2D([], [], color="C0", linestyle="-", label="Up"),
-                mlines.Line2D([], [], color="C1", linestyle="--", label="Down"),
+                mlines.Line2D([], [], c="C0", linestyle="-", label="Up"),
+                mlines.Line2D([], [], c="C1", linestyle="--", label="Down"),
             ]
         elif bs_labels is not None:
             linestyles = ["-", "--", "-.", ":"]
-            colors = rcParams["axes.prop_cycle"].by_key()["color"]
+            colours = rcParams["axes.prop_cycle"].by_key()["color"]
             spin_label = (
                 f" ({spin.name.capitalize()})" if spin is not None else ""
             )
@@ -348,7 +348,7 @@ class SBSPlotter(BSPlotter):
                 mlines.Line2D(
                     [],
                     [],
-                    c=colors[i % len(colors)],
+                    c=colours[i % len(colours)],
                     linestyle=linestyles[i % 4],
                     label=f"{label}{spin_label}",
                 )
@@ -372,25 +372,25 @@ class SBSPlotter(BSPlotter):
             )
 
     @staticmethod
-    def _get_colors_linestyles(num_bs, bs, bs_index, spin):
+    def _get_colours_linestyles(num_bs, bs, bs_index, spin):
         """
-        Gets the color and line style for a band structure.
+        Gets the colour and line style for a band structure.
         * If plotting one band structure:
-            * The color is "C0" if it's a valence band, a metal,
+            * The colour is "C0" if it's a valence band, a metal,
             spin up channel (if plotting both spins) or either spin channel
             (if plotting only one channel).
-            * The color is "C1" if it's a conduction band or a spin down
+            * The colour is "C1" if it's a conduction band or a spin down
             channel (if plotting both spins).
             * The line style is solid unless you're plotting a spin polarized
             band structure with both spins (spin=None), in which case the
             line style is dashed for the spin down bands
-        * If plotting multiple band structures, the line style loops through
-          bs_linestyles and the colors loop through bs_colors, independent
-          of being a metal or valence/conduction bands.
-          You can't plot multiple spin channels at once.
+        * If plotting multiple band structures, the colour loops through
+          the default colours of the current style, and lines through
+          "-", "--", "-.", ":". Conduction/valence/metal all have the same colour.
+          You can only plot one spin channel in compare mode.
 
-        * Returns the color as a tuple of length 1 or 2 (depending on whether
-        spin is set), whose elements are a list representing the color
+        * Returns the colour as a tuple of length 1 or 2 (depending on whether
+        spin is set), whose elements are a list representing the colour
         of each band,
         * The line style as a tuple of length 1 or 2
         """
@@ -424,8 +424,8 @@ class SBSPlotter(BSPlotter):
                 )
         else:
             linestyles = ["-", "--", "-.", ":"]
-            colors = rcParams["axes.prop_cycle"].by_key()["color"]
-            c = ([colors[bs_index % len(colors)]] * nbands,)
+            colours = rcParams["axes.prop_cycle"].by_key()["color"]
+            c = ([colours[bs_index % len(colours)]] * nbands,)
             ls = (linestyles[bs_index % 4],)
 
         return c, ls

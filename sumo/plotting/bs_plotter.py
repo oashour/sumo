@@ -294,7 +294,7 @@ class SBSPlotter(BSPlotter):
                         zorder=2,
                     )
 
-        self._make_legend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter)
+        self._makelegend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter)
         self._maketicks(ax, ylabel=ylabel)
 
         self._makeplot(
@@ -317,11 +317,11 @@ class SBSPlotter(BSPlotter):
         )
         return plt
 
-    @staticmethod
-    def _make_legend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter):
+    def _makelegend(self, ax, num_bs, bs_labels, spin, spin_legend, dos_plotter):
         """
         Adds a legend to the axes, if required.
         """
+        # Only one band structure, no legend required
         if num_bs == 1:
             bs_labels = None
         elif bs_labels is not None:
@@ -329,7 +329,8 @@ class SBSPlotter(BSPlotter):
             bs_labels += ["?"] * (num_bs - len(bs_labels))
             bs_labels = bs_labels[:num_bs]
             spin_legend = False
-        if spin is not None and spin_legend:
+        # Only spin polarized calculations with spin=None have a spin legend
+        if (spin is not None or not self.bs.is_spin_polarized):
             spin_legend = False
 
         handles = []

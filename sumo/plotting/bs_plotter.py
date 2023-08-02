@@ -294,7 +294,7 @@ class SBSPlotter(BSPlotter):
                         zorder=2,
                     )
 
-        self._makelegend(ax, num_bs, bs_labels, spin, spin_legend, dos_plotter)
+        self._makelegend(ax, bs_labels, spin, spin_legend, dos_plotter)
         self._maketicks(ax, ylabel=ylabel)
 
         self._makeplot(
@@ -317,12 +317,12 @@ class SBSPlotter(BSPlotter):
         )
         return plt
 
-    def _makelegend(self, ax, num_bs, bs_labels, spin, spin_legend, dos_plotter):
+    def _makelegend(self, ax, bs_labels, spin, spin_legend, dos_plotter):
         """
         Adds a legend to the axes, if required.
         """
         # Only one band structure, no legend required
-        if num_bs == 1:
+        if (num_bs := len(self._bs)) == 1:
             bs_labels = None
         elif bs_labels is not None:
             # Pad or trim bs_labels to match number of band structures

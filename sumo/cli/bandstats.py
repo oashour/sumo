@@ -16,7 +16,7 @@ import sys
 
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.io.vasp.outputs import BSVasprun
-from pymatgen.io.espresso.pwxml import PWxml
+from pymatgen.io.espresso.outputs import PWxml
 
 from sumo.cli.bandplot import find_vasprun_files
 from sumo.electronic_structure.bandstructure import get_reconstructed_band_structure
